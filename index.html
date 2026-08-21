@@ -273,8 +273,8 @@ const DESCRIPCION_CANDIDATES = ['descripcion','nombre del bien','articulo','elem
 const MARCA_CANDIDATES = ['marca'];
 const REFERENCIA_CANDIDATES = ['referencia','modelo'];
 const SERIAL_CANDIDATES = ['serial','no serie','numero de serie','n serie'];
-const CEDULA_CANDIDATES = ['identificacion tercero responsable','identificacion responsable','nit tercero responsable','documento tercero responsable','cedula','cc','numero de cedula','cedula responsable','documento responsable'];
-const COD_UBICACION_CANDIDATES = ['ubicacion activo','codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
+const CEDULA_CANDIDATES = ['tercero responsable','identificacion tercero responsable','identificacion responsable','nit tercero responsable','documento tercero responsable','cedula','cc','numero de cedula','cedula responsable','documento responsable'];
+const COD_UBICACION_CANDIDATES = ['ubicacion de activo','ubicacion activo','codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
 const ESTADO_CANDIDATES = ['estado','condicion','estado del bien','estado bien'];
 
 function detectHeader(headers, candidates, fallbackContains){
@@ -588,10 +588,10 @@ function buildSelectOptions(list){
 
 function buildVerifyForm(asset, existing){
   const f = asset.fields;
-  const curResponsable = existing ? (existing.responsableActual||'') : (responsableHeader ? String(f[responsableHeader]||'').trim() : '');
-  const curCedula = existing ? (existing.cedulaActual||'') : (cedulaHeader ? String(f[cedulaHeader]||'').trim() : '');
-  const curUbicacion = existing ? (existing.ubicacionActual||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
-  const curCodUbicacion = existing ? (existing.codigoUbicacionActual||'') : (codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '');
+  const curResponsable = existing ? (existing.responsableActual||'') : '';
+  const curCedula = existing ? (existing.cedulaActual||'') : '';
+  const curUbicacion = existing ? (existing.ubicacionActual||'') : '';
+  const curCodUbicacion = existing ? (existing.codigoUbicacionActual||'') : '';
   const curDescripcion = existing ? (existing.descripcionActual||'') : (descripcionHeader ? String(f[descripcionHeader]||'').trim() : '');
   const curMarca = existing ? (existing.marcaActual||'') : (marcaHeader ? String(f[marcaHeader]||'').trim() : '');
   const curReferencia = existing ? (existing.referenciaActual||'') : (referenciaHeader ? String(f[referenciaHeader]||'').trim() : '');
@@ -606,7 +606,7 @@ function buildVerifyForm(asset, existing){
     <div class="verify-form" id="verifyForm">
       <div class="vf-field">
         <label>Responsable</label>
-        <select id="vfResponsableSel">${buildSelectOptions(uniqueResponsables)}<option value="__other__">Otro (escribir)</option></select>
+        <select id="vfResponsableSel"><option value="">-- Seleccionar --</option>${buildSelectOptions(uniqueResponsables)}<option value="__other__">Otro (escribir)</option></select>
         <input type="text" id="vfResponsableOther" placeholder="Escribir responsable">
       </div>
       <div class="vf-field">
@@ -615,7 +615,7 @@ function buildVerifyForm(asset, existing){
       </div>
       <div class="vf-field">
         <label>Ubicación</label>
-        <select id="vfUbicacionSel">${buildSelectOptions(uniqueUbicaciones)}<option value="__other__">Otra (escribir)</option></select>
+        <select id="vfUbicacionSel"><option value="">-- Seleccionar --</option>${buildSelectOptions(uniqueUbicaciones)}<option value="__other__">Otra (escribir)</option></select>
         <input type="text" id="vfUbicacionOther" placeholder="Escribir ubicación">
       </div>
       <div class="vf-field">
@@ -666,13 +666,16 @@ function buildVerifyForm(asset, existing){
 function initVerifySelect(selId, otherId, list, current){
   const sel = document.getElementById(selId);
   const other = document.getElementById(otherId);
-  if(current && list.includes(current)){
+  if(!current){
+    sel.value = '';
+    other.style.display = 'none';
+  } else if(list.includes(current)){
     sel.value = current;
     other.style.display = 'none';
   } else {
     sel.value = '__other__';
     other.style.display = 'block';
-    other.value = current || '';
+    other.value = current;
   }
   sel.addEventListener('change', ()=>{
     other.style.display = (sel.value === '__other__') ? 'block' : 'none';
@@ -682,8 +685,8 @@ function initVerifySelect(selId, otherId, list, current){
 function setupVerifyForm(key, asset, placaRaw){
   const f = asset.fields;
   const existing = isVerified(key);
-  const curResponsable = existing ? (existing.responsableActual||'') : (responsableHeader ? String(f[responsableHeader]||'').trim() : '');
-  const curUbicacion = existing ? (existing.ubicacionActual||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
+  const curResponsable = existing ? (existing.responsableActual||'') : '';
+  const curUbicacion = existing ? (existing.ubicacionActual||'') : '';
 
   initVerifySelect('vfResponsableSel','vfResponsableOther', uniqueResponsables, curResponsable);
   initVerifySelect('vfUbicacionSel','vfUbicacionOther', uniqueUbicaciones, curUbicacion);
