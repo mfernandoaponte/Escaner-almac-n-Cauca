@@ -849,9 +849,15 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
       }
     }
     if(!records.length){ alert('Aún no hay bienes verificados.'); return; }
-    let csv = 'placa,fecha_verificacion,responsable_anterior,responsable_actual,cedula_anterior,cedula_actual,ubicacion_anterior,ubicacion_actual,codigo_ubicacion_anterior,codigo_ubicacion_actual,descripcion_anterior,descripcion_actual,marca_anterior,marca_actual,referencia_anterior,referencia_actual,serial_anterior,serial_actual,estado_anterior,estado_actual,reimprimir_placa,observaciones,tuvo_cambios\n';
+    let csv = 'placa,fecha_verificacion,'
+      + 'responsable_anterior,cedula_anterior,ubicacion_anterior,codigo_ubicacion_anterior,descripcion_anterior,marca_anterior,referencia_anterior,serial_anterior,estado_anterior,'
+      + 'responsable_actual,cedula_actual,ubicacion_actual,codigo_ubicacion_actual,descripcion_actual,marca_actual,referencia_actual,serial_actual,estado_actual,'
+      + 'reimprimir_placa,observaciones,tuvo_cambios\n';
     records.forEach(r=>{
-      csv += `"${r.placa}","${r.fecha}","${r.responsableAnterior||''}","${r.responsableActual||''}","${r.cedulaAnterior||''}","${r.cedulaActual||''}","${r.ubicacionAnterior||''}","${r.ubicacionActual||''}","${r.codigoUbicacionAnterior||''}","${r.codigoUbicacionActual||''}","${r.descripcionAnterior||''}","${r.descripcionActual||''}","${r.marcaAnterior||''}","${r.marcaActual||''}","${r.referenciaAnterior||''}","${r.referenciaActual||''}","${r.serialAnterior||''}","${r.serialActual||''}","${r.estadoAnterior||''}","${r.estadoActual||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
+      csv += `"${r.placa}","${r.fecha}",`
+        + `"${r.responsableAnterior||''}","${r.cedulaAnterior||''}","${r.ubicacionAnterior||''}","${r.codigoUbicacionAnterior||''}","${r.descripcionAnterior||''}","${r.marcaAnterior||''}","${r.referenciaAnterior||''}","${r.serialAnterior||''}","${r.estadoAnterior||''}",`
+        + `"${r.responsableActual||''}","${r.cedulaActual||''}","${r.ubicacionActual||''}","${r.codigoUbicacionActual||''}","${r.descripcionActual||''}","${r.marcaActual||''}","${r.referenciaActual||''}","${r.serialActual||''}","${r.estadoActual||''}",`
+        + `"${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
