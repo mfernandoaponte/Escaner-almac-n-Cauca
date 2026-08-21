@@ -114,6 +114,13 @@
   .modal-head span{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);}
   .modal-close{background:none;border:none;color:var(--paper);font-size:20px;cursor:pointer;line-height:1;}
   #video{width:100%;border-radius:6px;background:#000;display:block;max-height:280px;object-fit:cover;}
+  .video-wrap{position:relative;}
+  .scan-guide{
+    position:absolute;left:10%;right:10%;top:38%;bottom:38%;
+    border:2px solid var(--gold);border-radius:4px;
+    box-shadow:0 0 0 999px rgba(0,0,0,0.35);
+    pointer-events:none;
+  }
   .modal-hint{font-size:11.5px;color:rgba(247,245,239,0.6);margin-top:10px;font-family:var(--mono);text-align:center;line-height:1.5;}
 
   .result{margin-top:18px;background:var(--card);border:1px solid var(--paper-line);border-radius:8px;overflow:hidden;position:relative;}
@@ -192,9 +199,12 @@
       <span>Escanear placa</span>
       <button class="modal-close" id="closeModal">&times;</button>
     </div>
-    <video id="video" autoplay playsinline muted></video>
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="scan-guide"></div>
+    </div>
     <canvas id="canvas" style="display:none;"></canvas>
-    <p class="modal-hint" id="scanHint">Apunta la cámara al código de la placa.<br>Si no detecta automáticamente, escribe la placa a mano.</p>
+    <p class="modal-hint" id="scanHint">Acerca el código hasta llenar el recuadro dorado, sin reflejos ni sombras.<br>Si no detecta automáticamente, escribe la placa a mano.</p>
   </div>
 </div>
 
@@ -416,7 +426,9 @@ async function openScanner(){
   }
 
   try{
-    codeReader = new ZXing.BrowserMultiFormatReader();
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    codeReader = new ZXing.BrowserMultiFormatReader(hints);
     const constraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
 
     codeReader.decodeFromConstraints(constraints, 'video', (result, err)=>{
@@ -435,7 +447,7 @@ async function openScanner(){
 function closeScanner(){
   modalBackdrop.classList.remove('open');
   if(codeReader){ try{ codeReader.reset(); }catch(e){} codeReader = null; }
-  scanHint.innerHTML = 'Apunta la cámara al código de la placa.<br>Si no detecta automáticamente, escribe la placa a mano.';
+  scanHint.innerHTML = 'Acerca el código hasta llenar el recuadro dorado, sin reflejos ni sombras.<br>Si no detecta automáticamente, escribe la placa a mano.';
 }
 
 /* ---------- Export verified CSV ---------- */
