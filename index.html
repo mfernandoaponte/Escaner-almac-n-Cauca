@@ -782,6 +782,18 @@ const modalBackdrop = document.getElementById('modalBackdrop');
 document.getElementById('btnScan').addEventListener('click', openScanner);
 document.getElementById('closeModal').addEventListener('click', closeScanner);
 
+function buildScanHints(){
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.CODE_39,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.DATA_MATRIX
+  ]);
+  return hints;
+}
+
 async function openScanner(){
   if(!Object.keys(assets).length){ alert('Primero carga la base de bienes.'); return; }
   modalBackdrop.classList.add('open');
@@ -792,9 +804,7 @@ async function openScanner(){
   }
 
   try{
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    codeReader = new ZXing.BrowserMultiFormatReader(buildScanHints());
     const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false };
 
     codeReader.decodeFromConstraints(constraints, 'video', (result, err)=>{
@@ -821,9 +831,6 @@ document.getElementById('btnCapture').addEventListener('click', async ()=>{
   const vw = video.videoWidth, vh = video.videoHeight;
   scanHint.textContent = 'Analizando...';
 
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
   // 1) Intento con recorte ampliado de la zona del recuadro guía (más resolución efectiva sobre el código)
   const cropX = vw * 0.08, cropY = vh * 0.30, cropW = vw * 0.84, cropH = vh * 0.40;
   const scale = 2.2;
@@ -834,7 +841,7 @@ document.getElementById('btnCapture').addEventListener('click', async ()=>{
   const croppedUrl = canvas.toDataURL('image/png');
 
   try{
-    const reader1 = new ZXing.BrowserMultiFormatReader(hints);
+    const reader1 = new ZXing.BrowserMultiFormatReader(buildScanHints());
     const result = await reader1.decodeFromImageUrl(croppedUrl);
     const value = result.getText();
     placaInput.value = value;
@@ -849,7 +856,7 @@ document.getElementById('btnCapture').addEventListener('click', async ()=>{
     ctx2.drawImage(video, 0, 0, vw, vh);
     const fullUrl = canvas.toDataURL('image/png');
     try{
-      const reader2 = new ZXing.BrowserMultiFormatReader(hints);
+      const reader2 = new ZXing.BrowserMultiFormatReader(buildScanHints());
       const result = await reader2.decodeFromImageUrl(fullUrl);
       const value = result.getText();
       placaInput.value = value;
