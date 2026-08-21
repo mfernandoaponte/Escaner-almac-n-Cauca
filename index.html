@@ -818,23 +818,46 @@ function closeScanner(){
 
 document.getElementById('btnCapture').addEventListener('click', async ()=>{
   if(!video.videoWidth){ return; }
-  const ctx = canvas.getContext('2d');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/png');
+  const vw = video.videoWidth, vh = video.videoHeight;
   scanHint.textContent = 'Analizando...';
+
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+  // 1) Intento con recorte ampliado de la zona del recuadro guía (más resolución efectiva sobre el código)
+  const cropX = vw * 0.08, cropY = vh * 0.30, cropW = vw * 0.84, cropH = vh * 0.40;
+  const scale = 2.2;
+  const ctx = canvas.getContext('2d');
+  canvas.width = cropW * scale;
+  canvas.height = cropH * scale;
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+  const croppedUrl = canvas.toDataURL('image/png');
+
   try{
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const stillReader = new ZXing.BrowserMultiFormatReader(hints);
-    const result = await stillReader.decodeFromImageUrl(dataUrl);
+    const reader1 = new ZXing.BrowserMultiFormatReader(hints);
+    const result = await reader1.decodeFromImageUrl(croppedUrl);
     const value = result.getText();
     placaInput.value = value;
     closeScanner();
     showResult(value);
-  }catch(err){
-    scanHint.innerHTML = 'No se detectó ningún código en la foto. Ajusta el encuadre e intenta de nuevo,<br>o escribe la placa a mano.';
+    return;
+  }catch(err1){
+    // 2) Respaldo: intento con la foto completa, por si el código no cayó dentro del recuadro
+    const ctx2 = canvas.getContext('2d');
+    canvas.width = vw;
+    canvas.height = vh;
+    ctx2.drawImage(video, 0, 0, vw, vh);
+    const fullUrl = canvas.toDataURL('image/png');
+    try{
+      const reader2 = new ZXing.BrowserMultiFormatReader(hints);
+      const result = await reader2.decodeFromImageUrl(fullUrl);
+      const value = result.getText();
+      placaInput.value = value;
+      closeScanner();
+      showResult(value);
+    }catch(err2){
+      scanHint.innerHTML = 'No se detectó ningún código en la foto. Ajusta el encuadre e intenta de nuevo,<br>o escribe la placa a mano.';
+    }
   }
 });
 
