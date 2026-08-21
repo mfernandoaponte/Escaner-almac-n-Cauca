@@ -241,6 +241,8 @@ let codUbicacionHeader = null;
 let estadoHeader = null;
 let uniqueResponsables = [];
 let uniqueUbicaciones = [];
+let responsableCedulaMap = {};
+let ubicacionCodigoMap = {};
 let codeReader = null;
 
 const fileInput = document.getElementById('fileInput');
@@ -323,7 +325,7 @@ document.getElementById('changeFile').addEventListener('click', ()=>{
   fileInput.value='';
   fileLoaded.style.display='none';
   uploadZone.style.display='block';
-  assets={};placaHeader=null;responsableHeader=null;ubicacionHeader=null;descripcionHeader=null;marcaHeader=null;referenciaHeader=null;serialHeader=null;cedulaHeader=null;codUbicacionHeader=null;estadoHeader=null;uniqueResponsables=[];uniqueUbicaciones=[];
+  assets={};placaHeader=null;responsableHeader=null;ubicacionHeader=null;descripcionHeader=null;marcaHeader=null;referenciaHeader=null;serialHeader=null;cedulaHeader=null;codUbicacionHeader=null;estadoHeader=null;uniqueResponsables=[];uniqueUbicaciones=[];responsableCedulaMap={};ubicacionCodigoMap={};
   statsBar.style.display='none';
   emptyState.style.display='block';
   resultZone.innerHTML='';
@@ -367,6 +369,8 @@ function loadRows(rows, name){
   assets = {};
   const respSet = new Set();
   const ubicSet = new Set();
+  responsableCedulaMap = {};
+  ubicacionCodigoMap = {};
   rows.forEach(r=>{
     const raw = String(r[placaHeader]||'').trim();
     if(!raw) return;
@@ -374,6 +378,16 @@ function loadRows(rows, name){
     assets[key] = { placaOriginal: raw, fields: r };
     if(responsableHeader && String(r[responsableHeader]||'').trim()) respSet.add(String(r[responsableHeader]).trim());
     if(ubicacionHeader && String(r[ubicacionHeader]||'').trim()) ubicSet.add(String(r[ubicacionHeader]).trim());
+    if(responsableHeader && cedulaHeader){
+      const nm = String(r[responsableHeader]||'').trim();
+      const cd = String(r[cedulaHeader]||'').trim();
+      if(nm && cd && !responsableCedulaMap[nm]) responsableCedulaMap[nm] = cd;
+    }
+    if(ubicacionHeader && codUbicacionHeader){
+      const ub = String(r[ubicacionHeader]||'').trim();
+      const co = String(r[codUbicacionHeader]||'').trim();
+      if(ub && co && !ubicacionCodigoMap[ub]) ubicacionCodigoMap[ub] = co;
+    }
   });
   // Fusionar con responsables/ubicaciones agregados manualmente en verificaciones anteriores
   try{
@@ -469,13 +483,21 @@ async function showResult(placaRaw){
 }
 
 function renderVerifiedSummary(r){
+  const respCambio = r.responsableAnterior !== r.responsableActual;
+  const ubicCambio = r.ubicacionAnterior !== r.ubicacionActual;
   return `
     <div class="verified-note">Verificado el ${formatDate(r.fecha)}</div>
     <div class="verified-summary">
-      <div><span class="vs-k">Responsable:</span>${escapeHtml(r.responsable||'—')}</div>
-      <div><span class="vs-k">Cédula:</span>${escapeHtml(r.cedula||'—')}</div>
-      <div><span class="vs-k">Ubicación:</span>${escapeHtml(r.ubicacion||'—')}</div>
-      <div><span class="vs-k">Código ubicación:</span>${escapeHtml(r.codigoUbicacion||'—')}</div>
+      ${respCambio ? `
+        <div><span class="vs-k">Responsable anterior:</span>${escapeHtml(r.responsableAnterior||'—')}</div>
+        <div><span class="vs-k">Responsable actual:</span>${escapeHtml(r.responsableActual||'—')}</div>
+      ` : `<div><span class="vs-k">Responsable:</span>${escapeHtml(r.responsableActual||'—')}</div>`}
+      <div><span class="vs-k">Cédula:</span>${escapeHtml(r.cedulaActual||'—')}</div>
+      ${ubicCambio ? `
+        <div><span class="vs-k">Ubicación anterior:</span>${escapeHtml(r.ubicacionAnterior||'—')}</div>
+        <div><span class="vs-k">Ubicación actual:</span>${escapeHtml(r.ubicacionActual||'—')}</div>
+      ` : `<div><span class="vs-k">Ubicación:</span>${escapeHtml(r.ubicacionActual||'—')}</div>`}
+      <div><span class="vs-k">Código ubicación:</span>${escapeHtml(r.codigoUbicacionActual||'—')}</div>
       <div><span class="vs-k">Descripción:</span>${escapeHtml(r.descripcion||'—')}</div>
       ${r.marca ? `<div><span class="vs-k">Marca:</span>${escapeHtml(r.marca)}</div>` : ''}
       ${r.referencia ? `<div><span class="vs-k">Referencia:</span>${escapeHtml(r.referencia)}</div>` : ''}
@@ -483,7 +505,7 @@ function renderVerifiedSummary(r){
       <div><span class="vs-k">Estado:</span>${escapeHtml(r.estado||'—')}</div>
       <div><span class="vs-k">Reimprimir placa:</span>${r.reimprimir ? 'Sí' : 'No'}</div>
       ${r.observaciones ? `<div><span class="vs-k">Observaciones:</span>${escapeHtml(r.observaciones)}</div>` : ''}
-      ${r.cambios ? '<div class="vs-changed">⚠ Se corrigieron datos respecto al archivo original</div>' : ''}
+      ${r.cambios ? '<div class="vs-changed">⚠ Cambió de responsable y/o ubicación respecto al archivo original</div>' : ''}
     </div>`;
 }
 
@@ -493,10 +515,10 @@ function buildSelectOptions(list){
 
 function buildVerifyForm(asset, existing){
   const f = asset.fields;
-  const curResponsable = existing ? (existing.responsable||'') : (responsableHeader ? String(f[responsableHeader]||'').trim() : '');
-  const curCedula = existing ? (existing.cedula||'') : (cedulaHeader ? String(f[cedulaHeader]||'').trim() : '');
-  const curUbicacion = existing ? (existing.ubicacion||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
-  const curCodUbicacion = existing ? (existing.codigoUbicacion||'') : (codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '');
+  const curResponsable = existing ? (existing.responsableActual||'') : (responsableHeader ? String(f[responsableHeader]||'').trim() : '');
+  const curCedula = existing ? (existing.cedulaActual||'') : (cedulaHeader ? String(f[cedulaHeader]||'').trim() : '');
+  const curUbicacion = existing ? (existing.ubicacionActual||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
+  const curCodUbicacion = existing ? (existing.codigoUbicacionActual||'') : (codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '');
   const curDescripcion = existing ? (existing.descripcion||'') : (descripcionHeader ? String(f[descripcionHeader]||'').trim() : '');
   const curMarca = existing ? (existing.marca||'') : (marcaHeader ? String(f[marcaHeader]||'').trim() : '');
   const curReferencia = existing ? (existing.referencia||'') : (referenciaHeader ? String(f[referenciaHeader]||'').trim() : '');
@@ -593,6 +615,17 @@ function setupVerifyForm(key, asset, placaRaw){
   initVerifySelect('vfResponsableSel','vfResponsableOther', uniqueResponsables, curResponsable);
   initVerifySelect('vfUbicacionSel','vfUbicacionOther', uniqueUbicaciones, curUbicacion);
 
+  document.getElementById('vfResponsableSel').addEventListener('change', function(){
+    if(this.value !== '__other__' && responsableCedulaMap[this.value]){
+      document.getElementById('vfCedula').value = responsableCedulaMap[this.value];
+    }
+  });
+  document.getElementById('vfUbicacionSel').addEventListener('change', function(){
+    if(this.value !== '__other__' && ubicacionCodigoMap[this.value]){
+      document.getElementById('vfCodUbicacion').value = ubicacionCodigoMap[this.value];
+    }
+  });
+
   document.getElementById('vfCancel').addEventListener('click', ()=> showResult(placaRaw));
 
   document.getElementById('vfConfirm').addEventListener('click', ()=>{
@@ -614,15 +647,22 @@ function setupVerifyForm(key, asset, placaRaw){
     if(ubicacionSel === '__other__' && ubicacion) addExtraValue('extra_ubicaciones', uniqueUbicaciones, ubicacion);
 
     const originalResponsable = responsableHeader ? String(f[responsableHeader]||'').trim() : '';
+    const originalCedula = cedulaHeader ? String(f[cedulaHeader]||'').trim() : '';
     const originalUbicacion = ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '';
+    const originalCodigoUbicacion = codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '';
     const originalDescripcion = descripcionHeader ? String(f[descripcionHeader]||'').trim() : '';
     const cambios = (responsable !== originalResponsable) || (ubicacion !== originalUbicacion) || (descripcion !== originalDescripcion);
 
     const record = {
       placa: asset.placaOriginal,
       fecha: new Date().toISOString(),
-      responsable, cedula, ubicacion, codigoUbicacion, descripcion,
-      marca, referencia, serial, estado, reimprimir, observaciones, cambios
+      responsableAnterior: originalResponsable, responsableActual: responsable,
+      cedulaAnterior: originalCedula, cedulaActual: cedula,
+      ubicacionAnterior: originalUbicacion, ubicacionActual: ubicacion,
+      codigoUbicacionAnterior: originalCodigoUbicacion, codigoUbicacionActual: codigoUbicacion,
+      descripcion, marca, referencia, serial, estado, reimprimir, observaciones, cambios,
+      // alias de compatibilidad con vistas anteriores
+      responsable, ubicacion, codigoUbicacion, cedula
     };
     try{
       localStorage.setItem('verificado:'+key, JSON.stringify(record));
@@ -723,9 +763,9 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
       }
     }
     if(!records.length){ alert('Aún no hay bienes verificados.'); return; }
-    let csv = 'placa,fecha_verificacion,responsable,cedula,ubicacion,codigo_ubicacion,descripcion,marca,referencia,serial,estado,reimprimir_placa,observaciones,tuvo_correcciones\n';
+    let csv = 'placa,fecha_verificacion,responsable_anterior,responsable_actual,cedula_anterior,cedula_actual,ubicacion_anterior,ubicacion_actual,codigo_ubicacion_anterior,codigo_ubicacion_actual,descripcion,marca,referencia,serial,estado,reimprimir_placa,observaciones,tuvo_cambios\n';
     records.forEach(r=>{
-      csv += `"${r.placa}","${r.fecha}","${r.responsable||''}","${r.cedula||''}","${r.ubicacion||''}","${r.codigoUbicacion||''}","${r.descripcion||''}","${r.marca||''}","${r.referencia||''}","${r.serial||''}","${r.estado||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
+      csv += `"${r.placa}","${r.fecha}","${r.responsableAnterior||''}","${r.responsableActual||''}","${r.cedulaAnterior||''}","${r.cedulaActual||''}","${r.ubicacionAnterior||''}","${r.ubicacionActual||''}","${r.codigoUbicacionAnterior||''}","${r.codigoUbicacionActual||''}","${r.descripcion||''}","${r.marca||''}","${r.referencia||''}","${r.serial||''}","${r.estado||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
