@@ -417,10 +417,9 @@ async function openScanner(){
 
   try{
     codeReader = new ZXing.BrowserMultiFormatReader();
-    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-    const backCam = devices.find(d => /back|rear|environment|trasera/i.test(d.label)) || devices[devices.length - 1];
+    const constraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
 
-    codeReader.decodeFromVideoDevice(backCam ? backCam.deviceId : undefined, 'video', (result, err)=>{
+    codeReader.decodeFromConstraints(constraints, 'video', (result, err)=>{
       if(result){
         const value = result.getText();
         placaInput.value = value;
