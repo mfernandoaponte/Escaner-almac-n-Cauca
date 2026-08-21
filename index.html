@@ -275,7 +275,7 @@ const REFERENCIA_CANDIDATES = ['referencia','modelo'];
 const SERIAL_CANDIDATES = ['serial','no serie','numero de serie','n serie'];
 const CEDULA_CANDIDATES = ['tercero responsable','identificacion tercero responsable','identificacion responsable','nit tercero responsable','documento tercero responsable','cedula','cc','numero de cedula','cedula responsable','documento responsable'];
 const COD_UBICACION_CANDIDATES = ['ubicacion de activo','ubicacion activo','codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
-const ESTADO_CANDIDATES = ['estado','condicion','estado del bien','estado bien'];
+const ESTADO_CANDIDATES = ['estado actual','estado','condicion','estado del bien','estado bien'];
 
 function detectHeader(headers, candidates, fallbackContains){
   let h = headers.find(x => candidates.includes(normalize(x)));
@@ -379,7 +379,7 @@ function loadRows(rows, name){
                  headers.find(h => /identifica/.test(normalize(h)) && /responsable|tercero/.test(normalize(h)));
   codUbicacionHeader = detectHeader(headers, COD_UBICACION_CANDIDATES, ['codigo','ubicacion']) ||
                  headers.find(h => /^cod/.test(normalize(h)) && /ubicacion|activo/.test(normalize(h)));
-  estadoHeader = detectHeader(headers, ESTADO_CANDIDATES, ['estado']);
+  estadoHeader = headers.find(h => normalize(h) === 'estado actual') || detectHeader(headers, ESTADO_CANDIDATES, ['estado']);
 
   assets = {};
   const respSet = new Set();
