@@ -236,6 +236,9 @@ let descripcionHeader = null;
 let marcaHeader = null;
 let referenciaHeader = null;
 let serialHeader = null;
+let cedulaHeader = null;
+let codUbicacionHeader = null;
+let estadoHeader = null;
 let uniqueResponsables = [];
 let uniqueUbicaciones = [];
 let codeReader = null;
@@ -259,6 +262,9 @@ const DESCRIPCION_CANDIDATES = ['descripcion','nombre del bien','articulo','elem
 const MARCA_CANDIDATES = ['marca'];
 const REFERENCIA_CANDIDATES = ['referencia','modelo'];
 const SERIAL_CANDIDATES = ['serial','no serie','numero de serie','n serie'];
+const CEDULA_CANDIDATES = ['cedula','cc','numero de cedula','cedula responsable','documento responsable'];
+const COD_UBICACION_CANDIDATES = ['codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
+const ESTADO_CANDIDATES = ['estado','condicion','estado del bien','estado bien'];
 
 function detectHeader(headers, candidates, fallbackContains){
   let h = headers.find(x => candidates.includes(normalize(x)));
@@ -317,7 +323,7 @@ document.getElementById('changeFile').addEventListener('click', ()=>{
   fileInput.value='';
   fileLoaded.style.display='none';
   uploadZone.style.display='block';
-  assets={};placaHeader=null;responsableHeader=null;ubicacionHeader=null;descripcionHeader=null;marcaHeader=null;referenciaHeader=null;serialHeader=null;uniqueResponsables=[];uniqueUbicaciones=[];
+  assets={};placaHeader=null;responsableHeader=null;ubicacionHeader=null;descripcionHeader=null;marcaHeader=null;referenciaHeader=null;serialHeader=null;cedulaHeader=null;codUbicacionHeader=null;estadoHeader=null;uniqueResponsables=[];uniqueUbicaciones=[];
   statsBar.style.display='none';
   emptyState.style.display='block';
   resultZone.innerHTML='';
@@ -354,6 +360,9 @@ function loadRows(rows, name){
   marcaHeader = detectHeader(headers, MARCA_CANDIDATES, null);
   referenciaHeader = detectHeader(headers, REFERENCIA_CANDIDATES, null);
   serialHeader = detectHeader(headers, SERIAL_CANDIDATES, 'serial');
+  cedulaHeader = detectHeader(headers, CEDULA_CANDIDATES, 'cedula');
+  codUbicacionHeader = detectHeader(headers, COD_UBICACION_CANDIDATES, null);
+  estadoHeader = detectHeader(headers, ESTADO_CANDIDATES, 'estado');
 
   assets = {};
   const respSet = new Set();
@@ -366,6 +375,11 @@ function loadRows(rows, name){
     if(responsableHeader && String(r[responsableHeader]||'').trim()) respSet.add(String(r[responsableHeader]).trim());
     if(ubicacionHeader && String(r[ubicacionHeader]||'').trim()) ubicSet.add(String(r[ubicacionHeader]).trim());
   });
+  // Fusionar con responsables/ubicaciones agregados manualmente en verificaciones anteriores
+  try{
+    JSON.parse(localStorage.getItem('extra_responsables')||'[]').forEach(x=>respSet.add(x));
+    JSON.parse(localStorage.getItem('extra_ubicaciones')||'[]').forEach(x=>ubicSet.add(x));
+  }catch(e){}
   uniqueResponsables = Array.from(respSet).sort((a,b)=>a.localeCompare(b,'es'));
   uniqueUbicaciones = Array.from(ubicSet).sort((a,b)=>a.localeCompare(b,'es'));
 
@@ -382,6 +396,21 @@ function isVerified(placaKey){
     const raw = localStorage.getItem('verificado:'+placaKey);
     return raw ? JSON.parse(raw) : null;
   }catch(err){ return null; }
+}
+
+function addExtraValue(storageKey, list, name){
+  if(!name) return;
+  if(!list.includes(name)){
+    list.push(name);
+    list.sort((a,b)=>a.localeCompare(b,'es'));
+  }
+  try{
+    const stored = JSON.parse(localStorage.getItem(storageKey)||'[]');
+    if(!stored.includes(name)){
+      stored.push(name);
+      localStorage.setItem(storageKey, JSON.stringify(stored));
+    }
+  }catch(e){}
 }
 
 function refreshStats(){
@@ -444,11 +473,16 @@ function renderVerifiedSummary(r){
     <div class="verified-note">Verificado el ${formatDate(r.fecha)}</div>
     <div class="verified-summary">
       <div><span class="vs-k">Responsable:</span>${escapeHtml(r.responsable||'—')}</div>
+      <div><span class="vs-k">Cédula:</span>${escapeHtml(r.cedula||'—')}</div>
       <div><span class="vs-k">Ubicación:</span>${escapeHtml(r.ubicacion||'—')}</div>
+      <div><span class="vs-k">Código ubicación:</span>${escapeHtml(r.codigoUbicacion||'—')}</div>
       <div><span class="vs-k">Descripción:</span>${escapeHtml(r.descripcion||'—')}</div>
       ${r.marca ? `<div><span class="vs-k">Marca:</span>${escapeHtml(r.marca)}</div>` : ''}
       ${r.referencia ? `<div><span class="vs-k">Referencia:</span>${escapeHtml(r.referencia)}</div>` : ''}
       ${r.serial ? `<div><span class="vs-k">Serial:</span>${escapeHtml(r.serial)}</div>` : ''}
+      <div><span class="vs-k">Estado:</span>${escapeHtml(r.estado||'—')}</div>
+      <div><span class="vs-k">Reimprimir placa:</span>${r.reimprimir ? 'Sí' : 'No'}</div>
+      ${r.observaciones ? `<div><span class="vs-k">Observaciones:</span>${escapeHtml(r.observaciones)}</div>` : ''}
       ${r.cambios ? '<div class="vs-changed">⚠ Se corrigieron datos respecto al archivo original</div>' : ''}
     </div>`;
 }
@@ -460,11 +494,18 @@ function buildSelectOptions(list){
 function buildVerifyForm(asset, existing){
   const f = asset.fields;
   const curResponsable = existing ? (existing.responsable||'') : (responsableHeader ? String(f[responsableHeader]||'').trim() : '');
+  const curCedula = existing ? (existing.cedula||'') : (cedulaHeader ? String(f[cedulaHeader]||'').trim() : '');
   const curUbicacion = existing ? (existing.ubicacion||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
+  const curCodUbicacion = existing ? (existing.codigoUbicacion||'') : (codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '');
   const curDescripcion = existing ? (existing.descripcion||'') : (descripcionHeader ? String(f[descripcionHeader]||'').trim() : '');
   const curMarca = existing ? (existing.marca||'') : (marcaHeader ? String(f[marcaHeader]||'').trim() : '');
   const curReferencia = existing ? (existing.referencia||'') : (referenciaHeader ? String(f[referenciaHeader]||'').trim() : '');
   const curSerial = existing ? (existing.serial||'') : (serialHeader ? String(f[serialHeader]||'').trim() : '');
+  const rawEstado = existing ? (existing.estado||'') : (estadoHeader ? String(f[estadoHeader]||'').trim() : '');
+  const estadoOptions = ['Bueno','Regular','Malo'];
+  const curEstado = estadoOptions.find(o => normalize(o)===normalize(rawEstado)) || '';
+  const curReimprimir = existing ? !!existing.reimprimir : false;
+  const curObservaciones = existing ? (existing.observaciones||'') : '';
 
   return `
     <div class="verify-form" id="verifyForm">
@@ -474,9 +515,17 @@ function buildVerifyForm(asset, existing){
         <input type="text" id="vfResponsableOther" placeholder="Escribir responsable">
       </div>
       <div class="vf-field">
+        <label>Cédula del responsable</label>
+        <input type="text" inputmode="numeric" id="vfCedula" value="${escapeHtml(curCedula)}" placeholder="Número de cédula">
+      </div>
+      <div class="vf-field">
         <label>Ubicación</label>
         <select id="vfUbicacionSel">${buildSelectOptions(uniqueUbicaciones)}<option value="__other__">Otra (escribir)</option></select>
         <input type="text" id="vfUbicacionOther" placeholder="Escribir ubicación">
+      </div>
+      <div class="vf-field">
+        <label>Código de ubicación</label>
+        <input type="text" id="vfCodUbicacion" value="${escapeHtml(curCodUbicacion)}" placeholder="Código de la sede/dependencia">
       </div>
       <div class="vf-field">
         <label>Descripción</label>
@@ -490,13 +539,33 @@ function buildVerifyForm(asset, existing){
         <label>Serial</label>
         <input type="text" id="vfSerial" value="${escapeHtml(curSerial)}" placeholder="Si aplica">
       </div>
+      <div class="vf-field-row">
+        <div class="vf-field">
+          <label>Estado del bien</label>
+          <select id="vfEstado">
+            <option value="">-- Seleccionar --</option>
+            <option value="Bueno" ${curEstado==='Bueno'?'selected':''}>Bueno</option>
+            <option value="Regular" ${curEstado==='Regular'?'selected':''}>Regular</option>
+            <option value="Malo" ${curEstado==='Malo'?'selected':''}>Malo</option>
+          </select>
+        </div>
+        <div class="vf-field">
+          <label>¿Reimprimir placa?</label>
+          <select id="vfReimprimir">
+            <option value="no" ${!curReimprimir?'selected':''}>No</option>
+            <option value="si" ${curReimprimir?'selected':''}>Sí</option>
+          </select>
+        </div>
+      </div>
+      <div class="vf-field">
+        <label>Observaciones</label>
+        <textarea id="vfObservaciones" rows="2" placeholder="Novedades, daños, comentarios...">${escapeHtml(curObservaciones)}</textarea>
+      </div>
       <div class="vf-actions">
         <button class="btn btn-ghost" id="vfCancel">Cancelar</button>
         <button class="btn btn-ok" id="vfConfirm">Confirmar verificación</button>
       </div>
     </div>`;
-
-  // (curResponsable/curUbicacion consumed by setupVerifyForm via closures below)
 }
 
 function initVerifySelect(selId, otherId, list, current){
@@ -531,10 +600,18 @@ function setupVerifyForm(key, asset, placaRaw){
     const responsable = responsableSel === '__other__' ? document.getElementById('vfResponsableOther').value.trim() : responsableSel;
     const ubicacionSel = document.getElementById('vfUbicacionSel').value;
     const ubicacion = ubicacionSel === '__other__' ? document.getElementById('vfUbicacionOther').value.trim() : ubicacionSel;
+    const cedula = document.getElementById('vfCedula').value.trim();
+    const codigoUbicacion = document.getElementById('vfCodUbicacion').value.trim();
     const descripcion = document.getElementById('vfDescripcion').value.trim();
     const marca = document.getElementById('vfMarca').value.trim();
     const referencia = document.getElementById('vfReferencia').value.trim();
     const serial = document.getElementById('vfSerial').value.trim();
+    const estado = document.getElementById('vfEstado').value;
+    const reimprimir = document.getElementById('vfReimprimir').value === 'si';
+    const observaciones = document.getElementById('vfObservaciones').value.trim();
+
+    if(responsableSel === '__other__' && responsable) addExtraValue('extra_responsables', uniqueResponsables, responsable);
+    if(ubicacionSel === '__other__' && ubicacion) addExtraValue('extra_ubicaciones', uniqueUbicaciones, ubicacion);
 
     const originalResponsable = responsableHeader ? String(f[responsableHeader]||'').trim() : '';
     const originalUbicacion = ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '';
@@ -544,7 +621,8 @@ function setupVerifyForm(key, asset, placaRaw){
     const record = {
       placa: asset.placaOriginal,
       fecha: new Date().toISOString(),
-      responsable, ubicacion, descripcion, marca, referencia, serial, cambios
+      responsable, cedula, ubicacion, codigoUbicacion, descripcion,
+      marca, referencia, serial, estado, reimprimir, observaciones, cambios
     };
     try{
       localStorage.setItem('verificado:'+key, JSON.stringify(record));
@@ -645,9 +723,9 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
       }
     }
     if(!records.length){ alert('Aún no hay bienes verificados.'); return; }
-    let csv = 'placa,fecha_verificacion,responsable,ubicacion,descripcion,marca,referencia,serial,tuvo_correcciones\n';
+    let csv = 'placa,fecha_verificacion,responsable,cedula,ubicacion,codigo_ubicacion,descripcion,marca,referencia,serial,estado,reimprimir_placa,observaciones,tuvo_correcciones\n';
     records.forEach(r=>{
-      csv += `"${r.placa}","${r.fecha}","${r.responsable||''}","${r.ubicacion||''}","${r.descripcion||''}","${r.marca||''}","${r.referencia||''}","${r.serial||''}","${r.cambios?'SI':'NO'}"\n`;
+      csv += `"${r.placa}","${r.fecha}","${r.responsable||''}","${r.cedula||''}","${r.ubicacion||''}","${r.codigoUbicacion||''}","${r.descripcion||''}","${r.marca||''}","${r.referencia||''}","${r.serial||''}","${r.estado||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
