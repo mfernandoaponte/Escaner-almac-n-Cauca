@@ -204,6 +204,7 @@
       <div class="scan-guide"></div>
     </div>
     <canvas id="canvas" style="display:none;"></canvas>
+    <button class="btn btn-gold btn-full" id="btnCapture">Capturar y analizar</button>
     <p class="modal-hint" id="scanHint">Acerca el código hasta llenar el recuadro dorado, sin reflejos ni sombras.<br>Si no detecta automáticamente, escribe la placa a mano.</p>
   </div>
 </div>
@@ -429,7 +430,7 @@ async function openScanner(){
     const hints = new Map();
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
-    const constraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
+    const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false };
 
     codeReader.decodeFromConstraints(constraints, 'video', (result, err)=>{
       if(result){
@@ -449,6 +450,28 @@ function closeScanner(){
   if(codeReader){ try{ codeReader.reset(); }catch(e){} codeReader = null; }
   scanHint.innerHTML = 'Acerca el código hasta llenar el recuadro dorado, sin reflejos ni sombras.<br>Si no detecta automáticamente, escribe la placa a mano.';
 }
+
+document.getElementById('btnCapture').addEventListener('click', async ()=>{
+  if(!video.videoWidth){ return; }
+  const ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/png');
+  scanHint.textContent = 'Analizando...';
+  try{
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const stillReader = new ZXing.BrowserMultiFormatReader(hints);
+    const result = await stillReader.decodeFromImageUrl(dataUrl);
+    const value = result.getText();
+    placaInput.value = value;
+    closeScanner();
+    showResult(value);
+  }catch(err){
+    scanHint.innerHTML = 'No se detectó ningún código en la foto. Ajusta el encuadre e intenta de nuevo,<br>o escribe la placa a mano.';
+  }
+});
 
 /* ---------- Export verified CSV ---------- */
 document.getElementById('btnExport').addEventListener('click', async ()=>{
