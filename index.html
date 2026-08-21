@@ -258,14 +258,14 @@ const canvas = document.getElementById('canvas');
 const scanHint = document.getElementById('scanHint');
 
 const PLACA_HEADER_CANDIDATES = ['placa','codigo','cod placa','no placa','n placa','numero placa','codigo barras','codigo de barras','placa esap','id bien'];
-const RESPONSABLE_CANDIDATES = ['responsable','funcionario responsable','custodio','responsable actual','nombre responsable'];
-const UBICACION_CANDIDATES = ['ubicacion','sede','lugar','ubicacion actual','ubicacion bien'];
+const RESPONSABLE_CANDIDATES = ['nombre tercero responsable','responsable','funcionario responsable','custodio','responsable actual','nombre responsable'];
+const UBICACION_CANDIDATES = ['nombre ubicacion activo','ubicacion','sede','lugar','ubicacion actual','ubicacion bien'];
 const DESCRIPCION_CANDIDATES = ['descripcion','nombre del bien','articulo','elemento','nombre bien','descripcion bien'];
 const MARCA_CANDIDATES = ['marca'];
 const REFERENCIA_CANDIDATES = ['referencia','modelo'];
 const SERIAL_CANDIDATES = ['serial','no serie','numero de serie','n serie'];
-const CEDULA_CANDIDATES = ['cedula','cc','numero de cedula','cedula responsable','documento responsable'];
-const COD_UBICACION_CANDIDATES = ['codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
+const CEDULA_CANDIDATES = ['identificacion tercero responsable','identificacion responsable','nit tercero responsable','documento tercero responsable','cedula','cc','numero de cedula','cedula responsable','documento responsable'];
+const COD_UBICACION_CANDIDATES = ['ubicacion activo','codigo ubicacion','cod ubicacion','codigo sede','codigo lugar','codigo dependencia'];
 const ESTADO_CANDIDATES = ['estado','condicion','estado del bien','estado bien'];
 
 function detectHeader(headers, candidates, fallbackContains){
@@ -485,27 +485,30 @@ async function showResult(placaRaw){
 function renderVerifiedSummary(r){
   const respCambio = r.responsableAnterior !== r.responsableActual;
   const ubicCambio = r.ubicacionAnterior !== r.ubicacionActual;
+  const descCambio = r.descripcionAnterior !== r.descripcionActual;
+  const marcaCambio = r.marcaAnterior !== r.marcaActual;
+  const refCambio = r.referenciaAnterior !== r.referenciaActual;
+  const serialCambio = r.serialAnterior !== r.serialActual;
+  const estadoCambio = r.estadoAnterior !== r.estadoActual;
+  const campo = (label, anterior, actual, cambio) => cambio ? `
+      <div><span class="vs-k">${label} anterior:</span>${escapeHtml(anterior||'—')}</div>
+      <div><span class="vs-k">${label} actual:</span>${escapeHtml(actual||'—')}</div>
+    ` : `<div><span class="vs-k">${label}:</span>${escapeHtml(actual||'—')}</div>`;
   return `
     <div class="verified-note">Verificado el ${formatDate(r.fecha)}</div>
     <div class="verified-summary">
-      ${respCambio ? `
-        <div><span class="vs-k">Responsable anterior:</span>${escapeHtml(r.responsableAnterior||'—')}</div>
-        <div><span class="vs-k">Responsable actual:</span>${escapeHtml(r.responsableActual||'—')}</div>
-      ` : `<div><span class="vs-k">Responsable:</span>${escapeHtml(r.responsableActual||'—')}</div>`}
+      ${campo('Responsable', r.responsableAnterior, r.responsableActual, respCambio)}
       <div><span class="vs-k">Cédula:</span>${escapeHtml(r.cedulaActual||'—')}</div>
-      ${ubicCambio ? `
-        <div><span class="vs-k">Ubicación anterior:</span>${escapeHtml(r.ubicacionAnterior||'—')}</div>
-        <div><span class="vs-k">Ubicación actual:</span>${escapeHtml(r.ubicacionActual||'—')}</div>
-      ` : `<div><span class="vs-k">Ubicación:</span>${escapeHtml(r.ubicacionActual||'—')}</div>`}
+      ${campo('Ubicación', r.ubicacionAnterior, r.ubicacionActual, ubicCambio)}
       <div><span class="vs-k">Código ubicación:</span>${escapeHtml(r.codigoUbicacionActual||'—')}</div>
-      <div><span class="vs-k">Descripción:</span>${escapeHtml(r.descripcion||'—')}</div>
-      ${r.marca ? `<div><span class="vs-k">Marca:</span>${escapeHtml(r.marca)}</div>` : ''}
-      ${r.referencia ? `<div><span class="vs-k">Referencia:</span>${escapeHtml(r.referencia)}</div>` : ''}
-      ${r.serial ? `<div><span class="vs-k">Serial:</span>${escapeHtml(r.serial)}</div>` : ''}
-      <div><span class="vs-k">Estado:</span>${escapeHtml(r.estado||'—')}</div>
+      ${campo('Descripción', r.descripcionAnterior, r.descripcionActual, descCambio)}
+      ${(r.marcaAnterior||r.marcaActual) ? campo('Marca', r.marcaAnterior, r.marcaActual, marcaCambio) : ''}
+      ${(r.referenciaAnterior||r.referenciaActual) ? campo('Referencia', r.referenciaAnterior, r.referenciaActual, refCambio) : ''}
+      ${(r.serialAnterior||r.serialActual) ? campo('Serial', r.serialAnterior, r.serialActual, serialCambio) : ''}
+      ${campo('Estado', r.estadoAnterior, r.estadoActual, estadoCambio)}
       <div><span class="vs-k">Reimprimir placa:</span>${r.reimprimir ? 'Sí' : 'No'}</div>
       ${r.observaciones ? `<div><span class="vs-k">Observaciones:</span>${escapeHtml(r.observaciones)}</div>` : ''}
-      ${r.cambios ? '<div class="vs-changed">⚠ Cambió de responsable y/o ubicación respecto al archivo original</div>' : ''}
+      ${r.cambios ? '<div class="vs-changed">⚠ Hubo cambios respecto al archivo original</div>' : ''}
     </div>`;
 }
 
@@ -519,11 +522,11 @@ function buildVerifyForm(asset, existing){
   const curCedula = existing ? (existing.cedulaActual||'') : (cedulaHeader ? String(f[cedulaHeader]||'').trim() : '');
   const curUbicacion = existing ? (existing.ubicacionActual||'') : (ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '');
   const curCodUbicacion = existing ? (existing.codigoUbicacionActual||'') : (codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '');
-  const curDescripcion = existing ? (existing.descripcion||'') : (descripcionHeader ? String(f[descripcionHeader]||'').trim() : '');
-  const curMarca = existing ? (existing.marca||'') : (marcaHeader ? String(f[marcaHeader]||'').trim() : '');
-  const curReferencia = existing ? (existing.referencia||'') : (referenciaHeader ? String(f[referenciaHeader]||'').trim() : '');
-  const curSerial = existing ? (existing.serial||'') : (serialHeader ? String(f[serialHeader]||'').trim() : '');
-  const rawEstado = existing ? (existing.estado||'') : (estadoHeader ? String(f[estadoHeader]||'').trim() : '');
+  const curDescripcion = existing ? (existing.descripcionActual||'') : (descripcionHeader ? String(f[descripcionHeader]||'').trim() : '');
+  const curMarca = existing ? (existing.marcaActual||'') : (marcaHeader ? String(f[marcaHeader]||'').trim() : '');
+  const curReferencia = existing ? (existing.referenciaActual||'') : (referenciaHeader ? String(f[referenciaHeader]||'').trim() : '');
+  const curSerial = existing ? (existing.serialActual||'') : (serialHeader ? String(f[serialHeader]||'').trim() : '');
+  const rawEstado = existing ? (existing.estadoActual||'') : (estadoHeader ? String(f[estadoHeader]||'').trim() : '');
   const estadoOptions = ['Bueno','Regular','Malo'];
   const curEstado = estadoOptions.find(o => normalize(o)===normalize(rawEstado)) || '';
   const curReimprimir = existing ? !!existing.reimprimir : false;
@@ -651,7 +654,14 @@ function setupVerifyForm(key, asset, placaRaw){
     const originalUbicacion = ubicacionHeader ? String(f[ubicacionHeader]||'').trim() : '';
     const originalCodigoUbicacion = codUbicacionHeader ? String(f[codUbicacionHeader]||'').trim() : '';
     const originalDescripcion = descripcionHeader ? String(f[descripcionHeader]||'').trim() : '';
-    const cambios = (responsable !== originalResponsable) || (ubicacion !== originalUbicacion) || (descripcion !== originalDescripcion);
+    const originalMarca = marcaHeader ? String(f[marcaHeader]||'').trim() : '';
+    const originalReferencia = referenciaHeader ? String(f[referenciaHeader]||'').trim() : '';
+    const originalSerial = serialHeader ? String(f[serialHeader]||'').trim() : '';
+    const originalEstado = estadoHeader ? String(f[estadoHeader]||'').trim() : '';
+    const cambios = (responsable !== originalResponsable) || (ubicacion !== originalUbicacion) ||
+                    (descripcion !== originalDescripcion) || (marca !== originalMarca) ||
+                    (referencia !== originalReferencia) || (serial !== originalSerial) ||
+                    (estado && normalize(estado) !== normalize(originalEstado));
 
     const record = {
       placa: asset.placaOriginal,
@@ -660,9 +670,12 @@ function setupVerifyForm(key, asset, placaRaw){
       cedulaAnterior: originalCedula, cedulaActual: cedula,
       ubicacionAnterior: originalUbicacion, ubicacionActual: ubicacion,
       codigoUbicacionAnterior: originalCodigoUbicacion, codigoUbicacionActual: codigoUbicacion,
-      descripcion, marca, referencia, serial, estado, reimprimir, observaciones, cambios,
-      // alias de compatibilidad con vistas anteriores
-      responsable, ubicacion, codigoUbicacion, cedula
+      descripcionAnterior: originalDescripcion, descripcionActual: descripcion,
+      marcaAnterior: originalMarca, marcaActual: marca,
+      referenciaAnterior: originalReferencia, referenciaActual: referencia,
+      serialAnterior: originalSerial, serialActual: serial,
+      estadoAnterior: originalEstado, estadoActual: estado,
+      reimprimir, observaciones, cambios
     };
     try{
       localStorage.setItem('verificado:'+key, JSON.stringify(record));
@@ -763,9 +776,9 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
       }
     }
     if(!records.length){ alert('Aún no hay bienes verificados.'); return; }
-    let csv = 'placa,fecha_verificacion,responsable_anterior,responsable_actual,cedula_anterior,cedula_actual,ubicacion_anterior,ubicacion_actual,codigo_ubicacion_anterior,codigo_ubicacion_actual,descripcion,marca,referencia,serial,estado,reimprimir_placa,observaciones,tuvo_cambios\n';
+    let csv = 'placa,fecha_verificacion,responsable_anterior,responsable_actual,cedula_anterior,cedula_actual,ubicacion_anterior,ubicacion_actual,codigo_ubicacion_anterior,codigo_ubicacion_actual,descripcion_anterior,descripcion_actual,marca_anterior,marca_actual,referencia_anterior,referencia_actual,serial_anterior,serial_actual,estado_anterior,estado_actual,reimprimir_placa,observaciones,tuvo_cambios\n';
     records.forEach(r=>{
-      csv += `"${r.placa}","${r.fecha}","${r.responsableAnterior||''}","${r.responsableActual||''}","${r.cedulaAnterior||''}","${r.cedulaActual||''}","${r.ubicacionAnterior||''}","${r.ubicacionActual||''}","${r.codigoUbicacionAnterior||''}","${r.codigoUbicacionActual||''}","${r.descripcion||''}","${r.marca||''}","${r.referencia||''}","${r.serial||''}","${r.estado||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
+      csv += `"${r.placa}","${r.fecha}","${r.responsableAnterior||''}","${r.responsableActual||''}","${r.cedulaAnterior||''}","${r.cedulaActual||''}","${r.ubicacionAnterior||''}","${r.ubicacionActual||''}","${r.codigoUbicacionAnterior||''}","${r.codigoUbicacionActual||''}","${r.descripcionAnterior||''}","${r.descripcionActual||''}","${r.marcaAnterior||''}","${r.marcaActual||''}","${r.referenciaAnterior||''}","${r.referenciaActual||''}","${r.serialAnterior||''}","${r.serialActual||''}","${r.estadoAnterior||''}","${r.estadoActual||''}","${r.reimprimir?'SI':'NO'}","${(r.observaciones||'').replace(/"/g,'""')}","${r.cambios?'SI':'NO'}"\n`;
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
