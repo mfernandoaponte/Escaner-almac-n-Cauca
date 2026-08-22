@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Escáner de Inventario — ESAP Cauca</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<meta name="theme-color" content="#182635">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inventario ESAP">
+<meta name="mobile-web-app-capable" content="yes">
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
   :root{
@@ -253,6 +261,9 @@ let uniqueUbicaciones = [];
 let responsableCedulaMap = {};
 let ubicacionCodigoMap = {};
 let codeReader = null;
+let scannerStream = null;
+let detectLoop = null;
+let barcodeDetector = null;
 
 const fileInput = document.getElementById('fileInput');
 const uploadZone = document.getElementById('uploadZone');
@@ -798,16 +809,46 @@ async function openScanner(){
   if(!Object.keys(assets).length){ alert('Primero carga la base de bienes.'); return; }
   modalBackdrop.classList.add('open');
 
-  if(typeof ZXing === 'undefined'){
-    scanHint.innerHTML = 'No se pudo cargar el lector de códigos (revisa tu conexión a internet).<br>Cierra esta ventana y usa el campo de búsqueda manual.';
+  try{
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    video.srcObject = scannerStream;
+    await video.play();
+  }catch(err){
+    scanHint.innerHTML = 'No se pudo acceder a la cámara en este dispositivo.<br>Cierra esta ventana y usa el campo de búsqueda manual.';
     return;
   }
 
+  // Usar el detector nativo del navegador cuando esté disponible (Chrome/Android) — más rápido y preciso que la librería JS
+  if('BarcodeDetector' in window){
+    try{
+      const supported = await BarcodeDetector.getSupportedFormats();
+      const wanted = ['code_128','code_39','qr_code','data_matrix'].filter(f => supported.includes(f));
+      barcodeDetector = new BarcodeDetector({ formats: wanted.length ? wanted : supported });
+      detectLoop = setInterval(async ()=>{
+        try{
+          const codes = await barcodeDetector.detect(video);
+          if(codes.length){
+            const value = codes[0].rawValue;
+            placaInput.value = value;
+            closeScanner();
+            showResult(value);
+          }
+        }catch(e){}
+      }, 300);
+      return;
+    }catch(e){ /* si falla, sigue con ZXing abajo */ }
+  }
+
+  if(typeof ZXing === 'undefined'){
+    scanHint.innerHTML = 'No se pudo cargar el lector de códigos (revisa tu conexión a internet).<br>Usa "Capturar y analizar" o el campo de búsqueda manual.';
+    return;
+  }
   try{
     codeReader = new ZXing.BrowserMultiFormatReader(buildScanHints());
-    const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false };
-
-    codeReader.decodeFromConstraints(constraints, 'video', (result, err)=>{
+    codeReader.decodeFromVideoElement(video, (result, err)=>{
       if(result){
         const value = result.getText();
         placaInput.value = value;
@@ -816,14 +857,42 @@ async function openScanner(){
       }
     });
   }catch(err){
-    scanHint.innerHTML = 'No se pudo acceder a la cámara en este dispositivo.<br>Cierra esta ventana y usa el campo de búsqueda manual.';
+    scanHint.innerHTML = 'No se pudo iniciar el lector automático.<br>Usa "Capturar y analizar" o escribe la placa a mano.';
   }
 }
 
 function closeScanner(){
   modalBackdrop.classList.remove('open');
+  if(detectLoop){ clearInterval(detectLoop); detectLoop = null; }
+  barcodeDetector = null;
   if(codeReader){ try{ codeReader.reset(); }catch(e){} codeReader = null; }
+  if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
+  video.srcObject = null;
   scanHint.innerHTML = 'Acerca el código hasta llenar el recuadro dorado, sin reflejos ni sombras.<br>Si no detecta automáticamente, escribe la placa a mano.';
+}
+
+function enhanceContrast(ctx, w, h){
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+  let min = 255, max = 0;
+  const n = data.length;
+  for(let i=0;i<n;i+=4){
+    const g = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    if(g<min) min=g;
+    if(g>max) max=g;
+  }
+  const range = (max - min) || 1;
+  for(let i=0;i<n;i+=4){
+    const g = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    const v = Math.max(0, Math.min(255, ((g - min) / range) * 255));
+    data[i] = data[i+1] = data[i+2] = v;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+async function tryDecode(dataUrl){
+  const reader = new ZXing.BrowserMultiFormatReader(buildScanHints());
+  return reader.decodeFromImageUrl(dataUrl);
 }
 
 document.getElementById('btnCapture').addEventListener('click', async ()=>{
@@ -831,40 +900,51 @@ document.getElementById('btnCapture').addEventListener('click', async ()=>{
   const vw = video.videoWidth, vh = video.videoHeight;
   scanHint.textContent = 'Analizando...';
 
-  // 1) Intento con recorte ampliado de la zona del recuadro guía (más resolución efectiva sobre el código)
   const cropX = vw * 0.08, cropY = vh * 0.30, cropW = vw * 0.84, cropH = vh * 0.40;
   const scale = 2.2;
   const ctx = canvas.getContext('2d');
+
+  // 1) Recorte de la zona guía + contraste realzado (mejor intento para etiquetas con brillo/sombra)
   canvas.width = cropW * scale;
   canvas.height = cropH * scale;
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
-  const croppedUrl = canvas.toDataURL('image/png');
+  enhanceContrast(ctx, canvas.width, canvas.height);
+  const enhancedUrl = canvas.toDataURL('image/png');
 
   try{
-    const reader1 = new ZXing.BrowserMultiFormatReader(buildScanHints());
-    const result = await reader1.decodeFromImageUrl(croppedUrl);
+    const result = await tryDecode(enhancedUrl);
     const value = result.getText();
     placaInput.value = value;
     closeScanner();
     showResult(value);
     return;
-  }catch(err1){
-    // 2) Respaldo: intento con la foto completa, por si el código no cayó dentro del recuadro
-    const ctx2 = canvas.getContext('2d');
-    canvas.width = vw;
-    canvas.height = vh;
-    ctx2.drawImage(video, 0, 0, vw, vh);
-    const fullUrl = canvas.toDataURL('image/png');
-    try{
-      const reader2 = new ZXing.BrowserMultiFormatReader(buildScanHints());
-      const result = await reader2.decodeFromImageUrl(fullUrl);
-      const value = result.getText();
-      placaInput.value = value;
-      closeScanner();
-      showResult(value);
-    }catch(err2){
-      scanHint.innerHTML = 'No se detectó ningún código en la foto. Ajusta el encuadre e intenta de nuevo,<br>o escribe la placa a mano.';
-    }
+  }catch(err1){}
+
+  // 2) Recorte de la zona guía sin procesar (por si el realce de contraste distorsionó algo)
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+  const croppedUrl = canvas.toDataURL('image/png');
+  try{
+    const result = await tryDecode(croppedUrl);
+    const value = result.getText();
+    placaInput.value = value;
+    closeScanner();
+    showResult(value);
+    return;
+  }catch(err2){}
+
+  // 3) Respaldo final: foto completa, por si el código no cayó dentro del recuadro
+  canvas.width = vw;
+  canvas.height = vh;
+  ctx.drawImage(video, 0, 0, vw, vh);
+  const fullUrl = canvas.toDataURL('image/png');
+  try{
+    const result = await tryDecode(fullUrl);
+    const value = result.getText();
+    placaInput.value = value;
+    closeScanner();
+    showResult(value);
+  }catch(err3){
+    scanHint.innerHTML = 'No se detectó ningún código en la foto. Ajusta el encuadre e intenta de nuevo,<br>o escribe la placa a mano.';
   }
 });
 
